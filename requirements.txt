@@ -1,0 +1,2 @@
+praw==7.7.1
+# Standard library packages are not included as they come with Python

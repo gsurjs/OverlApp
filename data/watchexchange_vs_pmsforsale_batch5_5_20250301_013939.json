@@ -1,0 +1,19 @@
+{
+  "subreddit1": "watchexchange",
+  "subreddit2": "pmsforsale",
+  "batch1": 5,
+  "batch2": 5,
+  "users_count1": 1000,
+  "users_count2": 1000,
+  "overlapping_users_count": 3,
+  "overlapping_users": [
+    "civilian411",
+    "SofloAndDough",
+    "AutoModerator"
+  ],
+  "overlap_percentage1": 0.3,
+  "overlap_percentage2": 0.3,
+  "more_available1": true,
+  "more_available2": true,
+  "timestamp": "20250301_013939"
+}
