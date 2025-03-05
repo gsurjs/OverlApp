@@ -628,9 +628,21 @@ def interactive_menu(analyzer):
     """
     Interactive menu for comparing subreddits in batches.
     """
+    ascii_art = r"""
+      ____          _     _ _ _                  
+     |  _ \ ___  __| | __| (_) |_                
+     | |_) / _ \/ _` |/ _` | | __|               
+     |  _ <  __/ (_| | (_| | | |_                
+     |_|_\_\___|\__,_|\__,_|_|\__|               
+      / _ \__   _____ _ __| |  / \   _ __  _ __  
+     | | | \ \ / / _ \ '__| | / _ \ | '_ \| '_ \ 
+     | |_| |\ V /  __/ |  | |/ ___ \| |_) | |_) |
+      \___/  \_/ \___|_|  |_/_/   \_\ .__/| .__/ 
+                                    |_|   |_|    
+    """
     while True:
         print("\n" + "="*60)
-        print("SUBREDDIT OVERLAP ANALYZER")
+        print(ascii_art)
         print("="*60)
         print("1. Compare two subreddits (first batch of 1000 users)")
         print("2. Compare next batch")
