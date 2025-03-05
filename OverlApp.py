@@ -358,7 +358,16 @@ class SubredditOverlapAnalyzer:
         Returns:
             dict: Results containing success and failure counts
         """
-        if not self.reddit.user.me():
+        # Check if we're authenticated without using user.me() which can fail with 401
+        try:
+            # Try a simple API call that requires auth
+            self.reddit.auth.scopes()
+            authenticated = True
+        except Exception as e:
+            authenticated = False
+            print(f"Authentication error: {e}")
+            
+        if not authenticated:
             print("Error: You must be logged in to send messages. Please provide username and password when initializing.")
             return {
                 "success_count": 0,
@@ -616,7 +625,16 @@ def interactive_menu(analyzer):
             analyzer.print_results(results)
 
         elif choice == '4':
-            if not analyzer.reddit.user.me():
+            # Check if we're authenticated without using user.me() which can fail with 401
+            try:
+                # Try a simple API call that requires auth
+                analyzer.reddit.auth.scopes()
+                authenticated = True
+            except Exception as e:
+                authenticated = False
+                print(f"Authentication error: {e}")
+                
+            if not authenticated:
                 print("Error: You must be logged in to send messages.")
                 print("Please restart the program with your Reddit username and password.")
                 continue
