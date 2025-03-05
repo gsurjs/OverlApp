@@ -344,6 +344,167 @@ class SubredditOverlapAnalyzer:
             
         print("\nFull results saved to data directory")
         print("="*60)
+        
+    def send_messages_to_users(self, user_list, subject, message_body, throttle_sec=3):
+        """
+        Send a message to all users in the provided list.
+        
+        Args:
+            user_list (list): List of usernames to message
+            subject (str): Subject line for the message
+            message_body (str): Body text of the message
+            throttle_sec (int): Seconds to wait between messages to avoid rate limiting
+            
+        Returns:
+            dict: Results containing success and failure counts
+        """
+        if not self.reddit.user.me():
+            print("Error: You must be logged in to send messages. Please provide username and password when initializing.")
+            return {
+                "success_count": 0,
+                "failed_count": len(user_list),
+                "failed_users": user_list,
+                "success_users": []
+            }
+            
+        print(f"Preparing to send messages to {len(user_list)} users...")
+        print(f"Subject: {subject}")
+        print(f"Message preview: {message_body[:50]}..." if len(message_body) > 50 else f"Message: {message_body}")
+        
+        confirmation = input("\nAre you sure you want to proceed? This action cannot be undone. (y/n): ").lower()
+        if confirmation != 'y':
+            print("Message sending cancelled.")
+            return {
+                "success_count": 0,
+                "failed_count": 0,
+                "failed_users": [],
+                "success_users": []
+            }
+            
+        success_count = 0
+        failed_count = 0
+        failed_users = []
+        success_users = []
+        
+        print("\nSending messages...")
+        
+        for i, username in enumerate(user_list, 1):
+            try:
+                print(f"[{i}/{len(user_list)}] Sending message to u/{username}...", end="", flush=True)
+                
+                # Send the message
+                self.reddit.redditor(username).message(subject, message_body)
+                
+                success_count += 1
+                success_users.append(username)
+                print(" ✓")
+                
+                # Save progress periodically
+                if i % 10 == 0:
+                    progress = {
+                        "total_users": len(user_list),
+                        "processed_count": i,
+                        "success_count": success_count,
+                        "failed_count": failed_count,
+                        "failed_users": failed_users,
+                        "success_users": success_users,
+                        "timestamp": self._get_timestamp()
+                    }
+                    
+                    progress_filename = f"data/message_progress_{progress['timestamp']}.json"
+                    with open(progress_filename, 'w') as f:
+                        json.dump(progress, f, indent=2)
+                
+                # Sleep to avoid rate limiting
+                time.sleep(throttle_sec)
+                
+            except Exception as e:
+                failed_count += 1
+                failed_users.append(username)
+                print(f" ✗ (Error: {str(e)})")
+                
+                # If we hit a rate limit, wait longer
+                if "RATELIMIT" in str(e).upper():
+                    wait_time = 60  # Default wait time
+                    # Try to extract wait time from error message
+                    try:
+                        import re
+                        match = re.search(r'(\d+) (minute|second)s', str(e))
+                        if match:
+                            num = int(match.group(1))
+                            unit = match.group(2)
+                            wait_time = num * 60 if unit == 'minute' else num
+                    except:
+                        pass
+                        
+                    print(f"Rate limit hit. Waiting {wait_time} seconds before continuing...")
+                    time.sleep(wait_time)
+        
+        # Save final results
+        results = {
+            "total_users": len(user_list),
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "failed_users": failed_users,
+            "success_users": success_users,
+            "subject": subject,
+            "message_body": message_body,
+            "timestamp": self._get_timestamp()
+        }
+        
+        results_filename = f"data/message_results_{results['timestamp']}.json"
+        with open(results_filename, 'w') as f:
+            json.dump(results, f, indent=2)
+            
+        print("\nMessage sending complete!")
+        print(f"Successfully sent: {success_count}/{len(user_list)}")
+        print(f"Failed: {failed_count}/{len(user_list)}")
+        print(f"Results saved to {results_filename}")
+        
+        return results
+    
+    def load_overlap_results(self, subreddit1, subreddit2):
+        """
+        Load the most recent overlap results for two subreddits.
+        
+        Args:
+            subreddit1 (str): Name of the first subreddit
+            subreddit2 (str): Name of the second subreddit
+            
+        Returns:
+            dict: The most recent overlap results, or None if not found
+        """
+        # First try to find all batches results
+        all_batches_pattern = f"{subreddit1}_vs_{subreddit2}_all_batches_"
+        reverse_all_batches_pattern = f"{subreddit2}_vs_{subreddit1}_all_batches_"
+        
+        # Then look for individual batch results
+        batch_pattern = f"{subreddit1}_vs_{subreddit2}_batch"
+        reverse_batch_pattern = f"{subreddit2}_vs_{subreddit1}_batch"
+        
+        most_recent_file = None
+        most_recent_time = 0
+        
+        for filename in os.listdir('data'):
+            filepath = os.path.join('data', filename)
+            if (filename.startswith(all_batches_pattern) or 
+                filename.startswith(reverse_all_batches_pattern) or
+                filename.startswith(batch_pattern) or
+                filename.startswith(reverse_batch_pattern)) and filename.endswith('.json'):
+                
+                file_time = os.path.getmtime(filepath)
+                if file_time > most_recent_time:
+                    most_recent_time = file_time
+                    most_recent_file = filepath
+        
+        if most_recent_file:
+            with open(most_recent_file, 'r') as f:
+                results = json.load(f)
+            print(f"Loaded overlap results from {most_recent_file}")
+            return results
+        else:
+            print(f"No overlap results found for r/{subreddit1} and r/{subreddit2}")
+            return None
 
 
 def interactive_menu(analyzer):
@@ -357,9 +518,10 @@ def interactive_menu(analyzer):
         print("1. Compare two subreddits (first batch of 1000 users)")
         print("2. Compare next batch")
         print("3. Compare all saved batches")
-        print("4. Quit")
+        print("4. Message overlapping users")
+        print("5. Quit")
         
-        choice = input("\nEnter your choice (1-4): ")
+        choice = input("\nEnter your choice (1-5): ")
         
         if choice == '1':
             subreddit1 = input("Enter first subreddit name: ")
@@ -452,13 +614,62 @@ def interactive_menu(analyzer):
                 
             results = analyzer.compare_all_batches(subreddit1, subreddit2)
             analyzer.print_results(results)
-            
+
         elif choice == '4':
+            if not analyzer.reddit.user.me():
+                print("Error: You must be logged in to send messages.")
+                print("Please restart the program with your Reddit username and password.")
+                continue
+                
+            subreddit1 = input("Enter first subreddit name: ")
+            subreddit2 = input("Enter second subreddit name: ")
+            
+            # Load the most recent overlap results
+            results = analyzer.load_overlap_results(subreddit1, subreddit2)
+            
+            if not results:
+                print("No overlap results found. Please run a comparison first.")
+                continue
+                
+            # Get user list
+            if not results.get("overlapping_users"):
+                print("No overlapping users found in the results.")
+                continue
+                
+            users = results["overlapping_users"]
+            
+            # Message options
+            print(f"\nFound {len(users)} overlapping users between r/{results['subreddit1']} and r/{results['subreddit2']}")
+            
+            limit_input = input("How many users to message? (default: all): ")
+            user_limit = int(limit_input) if limit_input.isdigit() else len(users)
+            users = users[:user_limit]
+            
+            # Get message content
+            print("\nEnter message subject:")
+            subject = input("> ")
+            
+            print("\nEnter message body (type 'END' on a new line when finished):")
+            lines = []
+            while True:
+                line = input()
+                if line == 'END':
+                    break
+                lines.append(line)
+            message_body = '\n'.join(lines)
+            
+            # Set throttling
+            throttle_sec = int(input("\nSeconds to wait between messages (default: 3, recommended 3-5): ") or "3")
+            
+            # Send messages
+            results = analyzer.send_messages_to_users(users, subject, message_body, throttle_sec)
+            
+        elif choice == '5':
             print("Exiting. Thanks for using the Subreddit Overlap Analyzer!")
             break
             
         else:
-            print("Invalid choice. Please enter a number between 1 and 4.")
+            print("Invalid choice. Please enter a number between 1 and 5.")
 
 
 # Main function
@@ -467,18 +678,38 @@ def main():
     CLIENT_ID = "Paste Your Client ID Here"
     CLIENT_SECRET = "Paste Your Client Secret Here"
     USER_AGENT = "Paste Your User Agent Here"
+    USERNAME = None  # Required for sending messages
+    PASSWORD = None  # Required for sending messages
     
     # Check for command-line credentials
     if len(sys.argv) >= 4:
         CLIENT_ID = sys.argv[1]
         CLIENT_SECRET = sys.argv[2]
         USER_AGENT = sys.argv[3]
+        
+        # Optional username and password for auth
+        if len(sys.argv) >= 6:
+            USERNAME = sys.argv[4]
+            PASSWORD = sys.argv[5]
+    
+    # If not provided in command line, prompt for them if sending messages is desired
+    if not USERNAME or not PASSWORD:
+        print("NOTE: Reddit username and password are required for sending messages.")
+        print("Without these credentials, you can still analyze subreddits but not send messages.")
+        print("If you want to send messages later, restart the program with credentials.")
+        
+        auth_now = input("Would you like to provide credentials now? (y/n): ").lower() == 'y'
+        if auth_now:
+            USERNAME = input("Enter your Reddit username: ")
+            PASSWORD = input("Enter your Reddit password: ")
     
     # Initialize the analyzer
     analyzer = SubredditOverlapAnalyzer(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
-        user_agent=USER_AGENT
+        user_agent=USER_AGENT,
+        username=USERNAME,
+        password=PASSWORD
     )
     
     # Launch the interactive menu
