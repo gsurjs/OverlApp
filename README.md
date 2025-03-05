@@ -23,12 +23,9 @@ A Python tool that analyzes the overlap of active users between different subred
 
 ### Step 1: Install Python 3
 
-1. Visit the [Python downloads page](https://www.python.org/downloads/windows/)
+1. Visit the [Python downloads page](https://www.python.org/downloads/)
 2. Download the latest Python 3 installer (64-bit recommended)
 3. Run the installer
-4. **Important:** Check the box that says "Add Python to PATH"
-5. Click "Install Now"
-6. Wait for the installation to complete and click "Close"
 
 ### Step 2: Clone the Repository
 
