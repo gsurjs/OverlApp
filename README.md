@@ -30,19 +30,12 @@ A Python tool that analyzes the overlap of active users between different subred
 5. Click "Install Now"
 6. Wait for the installation to complete and click "Close"
 
-### Step 2: Install Visual Studio Code (if not already installed)
-
-1. Visit the [VSCode download page](https://code.visualstudio.com/download)
-2. Download the Windows installer
-3. Run the installer with default settings
-4. Once installed, open VSCode
-
-### Step 3: Clone the Repository
+### Step 2: Clone the Repository
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/subredditOverlap.git
-   cd subredditOverlap
+   git clone https://github.com/gsurjs/OverlApp.git
+   cd OverlApp
    ```
 
 2. Install dependencies:
@@ -109,9 +102,9 @@ The messaging feature allows you to reach out to users who are active in both su
 
 ### How to Use the Messaging Feature
 
-1. Run the program with your Reddit credentials:
+1. Run the program with your Reddit credentials (make sure they're passed as strings aka surrounded in ""):
    ```
-   python OverlApp.py [CLIENT_ID] [CLIENT_SECRET] [USER_AGENT] [USERNAME] [PASSWORD]
+   python OverlApp.py "CLIENT_ID" "CLIENT_SECRET" "USER_AGENT" "USERNAME" "PASSWORD"
    ```
 
 2. Complete at least one comparison between two subreddits (options 1, 2, or 3)
