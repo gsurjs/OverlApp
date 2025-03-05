@@ -16,7 +16,7 @@ A Python tool that analyzes the overlap of active users between different subred
 ## Requirements
 
 - Python 3.6+
-- Reddit API credentials (Client ID, Client Secret)
+- Reddit API credentials (Client ID, Client Secret, etc.)
 - Reddit account credentials (for messaging feature)
 
 ## Installation
