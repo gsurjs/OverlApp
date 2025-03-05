@@ -366,15 +366,21 @@ class SubredditOverlapAnalyzer:
         print("\nFull results saved to data directory")
         print("="*60)
         
-    def send_messages_to_users(self, user_list, subject, message_body, throttle_sec=3):
+    def send_messages_to_users(self, user_list, subject, message_body, min_throttle=3, max_throttle=8, 
+                          daily_limit=50, batch_pause_min=30, messages_per_batch=10, simulate_natural=True):
         """
-        Send a message to all users in the provided list.
+        Send a message to all users in the provided list with anti-spam measures.
         
         Args:
             user_list (list): List of usernames to message
             subject (str): Subject line for the message
             message_body (str): Body text of the message
-            throttle_sec (int): Seconds to wait between messages to avoid rate limiting
+            min_throttle (int): Minimum seconds to wait between messages
+            max_throttle (int): Maximum seconds to wait between messages
+            daily_limit (int): Maximum messages to send in a 24-hour period
+            batch_pause_min (int): Minutes to pause after each batch
+            messages_per_batch (int): Number of messages to send before taking a batch pause
+            simulate_natural (bool): Whether to use varying delays to simulate natural messaging patterns
             
         Returns:
             dict: Results containing success and failure counts
@@ -404,9 +410,22 @@ class SubredditOverlapAnalyzer:
                 "success_users": []
             }
             
-        print(f"Preparing to send messages to {len(user_list)} users...")
+        import random
+        import datetime
+        
+        total_messages = len(user_list)
+        days_needed = (total_messages + daily_limit - 1) // daily_limit
+        
+        print(f"Preparing to send messages to {total_messages} users...")
+        if total_messages > daily_limit:
+            print(f"With a daily limit of {daily_limit}, this will take approximately {days_needed} days to complete")
         print(f"Subject: {subject}")
         print(f"Message preview: {message_body[:50]}..." if len(message_body) > 50 else f"Message: {message_body}")
+        print(f"Anti-spam settings:")
+        print(f"- Wait time between messages: {min_throttle}-{max_throttle} seconds (randomized)")
+        print(f"- Messages per batch: {messages_per_batch} before taking a {batch_pause_min} minute break")
+        print(f"- Daily limit: {daily_limit} messages")
+        print(f"- Natural timing simulation: {'On' if simulate_natural else 'Off'}")
         
         confirmation = input("\nAre you sure you want to proceed? This action cannot be undone. (y/n): ").lower()
         if confirmation != 'y':
@@ -425,7 +444,44 @@ class SubredditOverlapAnalyzer:
         
         print("\nSending messages...")
         
+        # Track daily message count and day start time
+        day_start_time = datetime.datetime.now()
+        daily_message_count = 0
+        
         for i, username in enumerate(user_list, 1):
+            # Check if we've hit daily limit
+            current_time = datetime.datetime.now()
+            time_since_day_start = (current_time - day_start_time).total_seconds()
+            
+            # If 24 hours haven't passed but we've hit our daily limit, wait until 24 hours from day start
+            if daily_message_count >= daily_limit and time_since_day_start < 86400:  # 86400 seconds = 24 hours
+                wait_seconds = 86400 - time_since_day_start
+                next_batch_time = current_time + datetime.timedelta(seconds=wait_seconds)
+                print(f"\nDaily limit of {daily_limit} messages reached. Waiting until {next_batch_time.strftime('%Y-%m-%d %H:%M:%S')} to continue...")
+                
+                # Save current progress before sleeping
+                progress = {
+                    "total_users": len(user_list),
+                    "processed_count": i - 1,
+                    "success_count": success_count,
+                    "failed_count": failed_count,
+                    "failed_users": failed_users,
+                    "success_users": success_users,
+                    "paused_until": next_batch_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    "timestamp": self._get_timestamp()
+                }
+                
+                progress_filename = f"data/message_progress_{progress['timestamp']}.json"
+                with open(progress_filename, 'w') as f:
+                    json.dump(progress, f, indent=2)
+                    
+                time.sleep(wait_seconds)
+                
+                # Reset daily counter and start time
+                day_start_time = datetime.datetime.now()
+                daily_message_count = 0
+                print(f"Resuming messaging...")
+            
             try:
                 print(f"[{i}/{len(user_list)}] Sending message to u/{username}...", end="", flush=True)
                 
@@ -434,6 +490,7 @@ class SubredditOverlapAnalyzer:
                 
                 success_count += 1
                 success_users.append(username)
+                daily_message_count += 1
                 print(" ✓")
                 
                 # Save progress periodically
@@ -445,6 +502,9 @@ class SubredditOverlapAnalyzer:
                         "failed_count": failed_count,
                         "failed_users": failed_users,
                         "success_users": success_users,
+                        "daily_messages_sent": daily_message_count,
+                        "daily_limit": daily_limit,
+                        "day_start_time": day_start_time.strftime('%Y-%m-%d %H:%M:%S'),
                         "timestamp": self._get_timestamp()
                     }
                     
@@ -452,18 +512,37 @@ class SubredditOverlapAnalyzer:
                     with open(progress_filename, 'w') as f:
                         json.dump(progress, f, indent=2)
                 
-                # Sleep to avoid rate limiting
-                time.sleep(throttle_sec)
+                # Determine wait time between messages
+                if simulate_natural:
+                    # Occasionally have a longer pause to seem more human-like
+                    if random.random() < 0.1:  # 10% chance of a longer pause
+                        wait_time = random.uniform(max_throttle, max_throttle * 2)
+                    else:
+                        wait_time = random.uniform(min_throttle, max_throttle)
+                else:
+                    wait_time = random.uniform(min_throttle, max_throttle)
+                
+                # If we've completed a batch, take a longer pause
+                if i % messages_per_batch == 0 and i < len(user_list):
+                    batch_pause_sec = batch_pause_min * 60
+                    batch_pause_with_jitter = random.uniform(batch_pause_sec * 0.8, batch_pause_sec * 1.2)
+                    next_batch_time = datetime.datetime.now() + datetime.timedelta(seconds=batch_pause_with_jitter)
+                    
+                    print(f"\nCompleted batch of {messages_per_batch} messages. Taking a break until {next_batch_time.strftime('%H:%M:%S')}...")
+                    time.sleep(batch_pause_with_jitter)
+                    print("Resuming messaging...")
+                else:
+                    # Regular wait between messages
+                    time.sleep(wait_time)
                 
             except Exception as e:
                 failed_count += 1
                 failed_users.append(username)
                 print(f" ✗ (Error: {str(e)})")
                 
-                # If we hit a rate limit, wait longer
+                # If we hit a rate limit, wait longer and extract wait time if possible
                 if "RATELIMIT" in str(e).upper():
                     wait_time = 60  # Default wait time
-                    # Try to extract wait time from error message
                     try:
                         import re
                         match = re.search(r'(\d+) (minute|second)s', str(e))
@@ -474,8 +553,9 @@ class SubredditOverlapAnalyzer:
                     except:
                         pass
                         
-                    print(f"Rate limit hit. Waiting {wait_time} seconds before continuing...")
-                    time.sleep(wait_time)
+                    next_attempt_time = datetime.datetime.now() + datetime.timedelta(seconds=wait_time)
+                    print(f"Rate limit hit. Waiting until {next_attempt_time.strftime('%H:%M:%S')} before continuing...")
+                    time.sleep(wait_time + random.uniform(10, 30))  # Add extra random buffer time
         
         # Save final results
         results = {
@@ -704,11 +784,27 @@ def interactive_menu(analyzer):
                 lines.append(line)
             message_body = '\n'.join(lines)
             
-            # Set throttling
-            throttle_sec = int(input("\nSeconds to wait between messages (default: 3, recommended 3-5): ") or "3")
+            # Anti-spam settings
+            print("\n=== Anti-Spam Configuration ===")
+            min_throttle = int(input("Minimum seconds between messages (default: 3): ") or "3")
+            max_throttle = int(input("Maximum seconds between messages (default: 8): ") or "8")
+            daily_limit = int(input("Maximum messages per day (default: 50): ") or "50")
+            messages_per_batch = int(input("Messages per batch before taking a break (default: 10): ") or "10")
+            batch_pause_min = int(input("Minutes to pause between batches (default: 30): ") or "30")
+            simulate_natural = input("Simulate natural messaging patterns? (y/n, default: y): ").lower() != 'n'
             
             # Send messages
-            results = analyzer.send_messages_to_users(users, subject, message_body, throttle_sec)
+            results = analyzer.send_messages_to_users(
+                users, 
+                subject, 
+                message_body, 
+                min_throttle=min_throttle,
+                max_throttle=max_throttle,
+                daily_limit=daily_limit,
+                batch_pause_min=batch_pause_min,
+                messages_per_batch=messages_per_batch,
+                simulate_natural=simulate_natural
+            )
             
         elif choice == '5':
             print("Exiting. Thanks for using the Subreddit Overlap Analyzer!")
