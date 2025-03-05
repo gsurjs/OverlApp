@@ -26,6 +26,9 @@ class SubredditOverlapAnalyzer:
             password=password
         )
         
+        # List of bot users to filter out
+        self.bot_users = ["AutoModerator"]
+        
         # Create data directory if it doesn't exist
         if not os.path.exists('data'):
             os.makedirs('data')
@@ -33,6 +36,18 @@ class SubredditOverlapAnalyzer:
     def _get_timestamp(self):
         """Get current timestamp string for filenames."""
         return datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    def _filter_bot_users(self, users_set):
+        """
+        Filter out known bot users from a set of usernames.
+        
+        Args:
+            users_set (set): Set of usernames
+            
+        Returns:
+            set: Filtered set of usernames with bots removed
+        """
+        return {user for user in users_set if user not in self.bot_users}
         
     def get_active_users(self, subreddit_name, post_limit=100, comment_limit=100, batch_size=1000, start_batch=0):
         """
@@ -76,14 +91,14 @@ class SubredditOverlapAnalyzer:
                     
                 post_count += 1
                 
-                # Track post author
-                if submission.author:
+                # Track post author - filter out bots like AutoModerator
+                if submission.author and submission.author.name not in self.bot_users:
                     users.add(submission.author.name)
                 
                 # Get comment authors
                 submission.comments.replace_more(limit=0)  # Flatten comment tree
                 for comment in submission.comments.list()[:comment_limit]:
-                    if comment.author:
+                    if comment.author and comment.author.name not in self.bot_users:
                         users.add(comment.author.name)
                         
                     # If we've reached our batch size, stop collecting
@@ -159,6 +174,9 @@ class SubredditOverlapAnalyzer:
         # Convert users list back to set
         data["users"] = set(data["users"])
         
+        # Filter out bot users from loaded data
+        data["users"] = self._filter_bot_users(data["users"])
+        
         print(f"Loaded {len(data['users'])} users from {filename}")
         return data
         
@@ -184,6 +202,9 @@ class SubredditOverlapAnalyzer:
         for batch_file in batch_files:
             data = self.load_users_from_file(batch_file)
             all_users.update(data["users"])
+            
+        # Final filter for bot users in combined set
+        all_users = self._filter_bot_users(all_users)
             
         print(f"Combined {len(batch_files)} batches for r/{subreddit_name}, total of {len(all_users)} unique users")
         return all_users
@@ -358,6 +379,13 @@ class SubredditOverlapAnalyzer:
         Returns:
             dict: Results containing success and failure counts
         """
+        # Filter out any bot users from the message list
+        filtered_user_list = [user for user in user_list if user not in self.bot_users]
+        
+        if len(filtered_user_list) < len(user_list):
+            print(f"Filtered out {len(user_list) - len(filtered_user_list)} bot users from messaging list")
+            user_list = filtered_user_list
+        
         # Check if we're authenticated without using user.me() which can fail with 401
         try:
             # Try a simple API call that requires auth
