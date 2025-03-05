@@ -1,6 +1,6 @@
 # Subreddit Overlap Analyzer
 
-A Python tool that analyzes the overlap of active users between different subreddits. This tool helps you understand the relationship between communities by identifying common participants.
+A Python tool that analyzes the overlap of active users between different subreddits. This tool helps you find common Redditors between communities, assisting in networking opportunities.
 
 ## Features
 
