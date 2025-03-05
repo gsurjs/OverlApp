@@ -62,6 +62,8 @@ Before using this tool, you'll need to register for Reddit API credentials:
 
 ### Run with Interactive Menu
 
+(make sure each argument is passed in as a string ie "1234abcd" for [CLIENT_ID] etc)
+
 ```
 python OverlApp.py [CLIENT_ID] [CLIENT_SECRET] [USER_AGENT] [USERNAME] [PASSWORD]
 ```
