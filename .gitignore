@@ -32,7 +32,7 @@ wheels/
 *.egg
 
 # Data files - uncomment if you don't want to track these
-# data/
+data/
 
 # Logs
 *.log
